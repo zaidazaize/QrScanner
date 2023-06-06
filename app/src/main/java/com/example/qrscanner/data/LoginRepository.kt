@@ -1,6 +1,8 @@
 package com.example.qrscanner.data
 
+import androidx.lifecycle.LiveData
 import com.example.qrscanner.data.model.LoggedInUser
+import com.google.firebase.auth.FirebaseAuth
 
 /**
  * Class that requests authentication and user information from the remote data source and
@@ -22,20 +24,20 @@ class LoginRepository(val dataSource: LoginDataSource) {
         user = null
     }
 
-    fun logout() {
+    fun logout(auth: FirebaseAuth) {
         user = null
-        dataSource.logout()
+        dataSource.logout(auth)
     }
 
-    fun login(username: String, password: String): Result<LoggedInUser> {
+    fun login(username: String, password: String, auth: FirebaseAuth): LiveData<Result<LoggedInUser>> {
         // handle login
-        val result = dataSource.login(username, password)
-
-        if (result is Result.Success) {
-            setLoggedInUser(result.data)
-        }
-
-        return result
+        dataSource.login(username, password,auth)
+        return dataSource.result
+//        if (result is Result.Success) {
+//            setLoggedInUser(result.data)
+//        }
+//
+//        return result
     }
 
     private fun setLoggedInUser(loggedInUser: LoggedInUser) {
