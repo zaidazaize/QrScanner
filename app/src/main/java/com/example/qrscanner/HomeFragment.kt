@@ -15,8 +15,10 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
@@ -31,6 +33,7 @@ import com.google.firebase.ktx.Firebase
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.common.Barcode
 import java.lang.Exception
+import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.concurrent.Executor
@@ -42,6 +45,8 @@ import java.util.concurrent.Executors
  * Use the [HomeFragment.newInstance] factory method to
  * create an instance of this fragment.
  */
+typealias LumaListener = (luma: Double) -> Unit
+
 class HomeFragment : Fragment() {
     private lateinit var auth: FirebaseAuth
     private lateinit var binding: FragmentHomeBinding
@@ -70,13 +75,13 @@ class HomeFragment : Fragment() {
         }
         binding.scanqr.setOnClickListener() {
             if (allPermissionsGranted()) {
-                Toast.makeText(requireContext(),"pergot",Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), "pergot", Toast.LENGTH_SHORT).show()
                 takePhoto()
-            }else{
+            } else {
                 requestPermissions()
             }
         }
-        if(allPermissionsGranted()){
+        if (allPermissionsGranted()) {
             startCamera()
         }
         cameraExecutor = Executors.newSingleThreadExecutor()
@@ -122,7 +127,7 @@ class HomeFragment : Fragment() {
                 ).show()
 
             } else {
-                Toast.makeText(requireContext(),"started camera",Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), "started camera", Toast.LENGTH_SHORT).show()
                 startCamera()
             }
         }
@@ -191,6 +196,14 @@ class HomeFragment : Fragment() {
 
             imageCapture = ImageCapture.Builder().build()
 
+            val imageAnalyzer = ImageAnalysis.Builder()
+                .build()
+                .also {
+                    it.setAnalyzer(cameraExecutor, LuminosityAnalyzer { luma ->
+                        Log.d(TAG, "Average luminosity : $luma")
+                    })
+                }
+
             val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
             try {
                 cameraProvider.unbindAll()
@@ -198,7 +211,7 @@ class HomeFragment : Fragment() {
                     viewLifecycleOwner,
                     cameraSelector,
                     preview,
-                    imageCapture
+                    imageCapture, imageAnalyzer
                 )
             } catch (exec: Exception) {
                 Log.d(TAG, "use binding fail", exec)
@@ -223,6 +236,25 @@ class HomeFragment : Fragment() {
                     add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                 }
             }.toTypedArray()
+    }
+
+}
+
+private class LuminosityAnalyzer(private val listener: LumaListener) : ImageAnalysis.Analyzer {
+    private fun ByteBuffer.toByteArray(): ByteArray {
+        rewind()
+        val data = ByteArray(remaining())
+        get(data)
+        return data
+    }
+
+    override fun analyze(image: ImageProxy) {
+        val buffer = image.planes[0].buffer
+        val data = buffer.toByteArray()
+        val pixels = data.map { it.toInt() and 0xFF }
+        val luma = pixels.average()
+        listener(luma)
+        image.close()
     }
 
 }
