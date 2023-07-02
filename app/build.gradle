@@ -56,7 +56,8 @@ dependencies {
     //analytics
     implementation 'com.google.firebase:firebase-analytics-ktx'
     def nav_version = "2.5.3"
-    //model
+
+    // model to scan barcode
     implementation 'com.google.android.gms:play-services-mlkit-barcode-scanning:18.2.0'
 
     // Navigation

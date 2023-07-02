@@ -3,6 +3,7 @@ package com.example.qrscanner.data
 import androidx.lifecycle.LiveData
 import com.example.qrscanner.data.model.LoggedInUser
 import com.google.firebase.auth.FirebaseAuth
+import kotlin.math.log
 
 /**
  * Class that requests authentication and user information from the remote data source and

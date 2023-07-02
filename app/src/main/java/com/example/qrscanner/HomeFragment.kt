@@ -6,15 +6,14 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
-import android.provider.MediaStore.Audio.Media
 import android.util.Log
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -22,29 +21,21 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
-import androidx.navigation.Navigation
-import androidx.navigation.fragment.FragmentNavigator
-import androidx.navigation.fragment.FragmentNavigatorExtras
-import androidx.navigation.fragment.NavHostFragment
+import androidx.fragment.app.Fragment
 import com.example.qrscanner.databinding.FragmentHomeBinding
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.common.Barcode
-import java.lang.Exception
+import com.google.mlkit.vision.common.InputImage
 import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.Locale
-import java.util.concurrent.Executor
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-/**
- * A simple [Fragment] subclass.
- * Use the [HomeFragment.newInstance] factory method to
- * create an instance of this fragment.
- */
+
 typealias LumaListener = (luma: Double) -> Unit
 
 class HomeFragment : Fragment() {
@@ -63,15 +54,11 @@ class HomeFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
+    ): View {
 
-        // Inflate the layout for this fragment
-        checkAuth()
         binding = FragmentHomeBinding.inflate(layoutInflater, container, false)
         binding.logout.setOnClickListener() {
             auth.signOut()
-            Navigation.findNavController(requireActivity(), R.id.nav_host)
-                .navigate(R.id.action_homeFragment_to_loginFragment)
         }
         binding.scanqr.setOnClickListener() {
             if (allPermissionsGranted()) {
@@ -88,18 +75,12 @@ class HomeFragment : Fragment() {
         return binding.root
     }
 
-    private fun checkAuth() {
-        if (auth.currentUser == null) {
-            Navigation.findNavController(requireActivity(), R.id.nav_host)
-                .navigate(R.id.action_homeFragment_to_loginFragment)
-        }
-    }
+
 
     private fun scanBarcode() {
         val options = BarcodeScannerOptions.Builder()
             .setBarcodeFormats(Barcode.FORMAT_QR_CODE, Barcode.FORMAT_AZTEC)
-            .enableAllPotentialBarcodes() // Optional
-            .build()
+           .build()
     }
 
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
@@ -179,9 +160,6 @@ class HomeFragment : Fragment() {
         )
     }
 
-    private fun captureVideo() {}
-
-
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(requireContext())
 
@@ -204,7 +182,7 @@ class HomeFragment : Fragment() {
                     })
                 }
 
-            val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
+            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
             try {
                 cameraProvider.unbindAll()
                 cameraProvider.bindToLifecycle(
@@ -240,7 +218,7 @@ class HomeFragment : Fragment() {
 
 }
 
-private class LuminosityAnalyzer(private val listener: LumaListener) : ImageAnalysis.Analyzer {
+@ExperimentalGetImage private class LuminosityAnalyzer(private val listener: LumaListener) : ImageAnalysis.Analyzer {
     private fun ByteBuffer.toByteArray(): ByteArray {
         rewind()
         val data = ByteArray(remaining())
@@ -248,13 +226,13 @@ private class LuminosityAnalyzer(private val listener: LumaListener) : ImageAnal
         return data
     }
 
-    override fun analyze(image: ImageProxy) {
-        val buffer = image.planes[0].buffer
-        val data = buffer.toByteArray()
-        val pixels = data.map { it.toInt() and 0xFF }
-        val luma = pixels.average()
-        listener(luma)
-        image.close()
+    override fun analyze(imageProxy: ImageProxy) {
+        val mediaImage = imageProxy.image
+        if(mediaImage != null){
+            val image = InputImage.fromMediaImage(mediaImage,imageProxy.imageInfo.rotationDegrees)
+        }
+
+
     }
 
 }

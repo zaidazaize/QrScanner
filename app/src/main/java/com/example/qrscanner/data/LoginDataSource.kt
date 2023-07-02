@@ -16,7 +16,9 @@ class LoginDataSource(private  val mainActivity: FragmentActivity) {
     private val _result : MutableLiveData<Result<LoggedInUser>> = MutableLiveData()
 
    public val result : LiveData<Result<LoggedInUser>>
-       get() = _result
+       get() {
+           return _result
+       }
     fun login(email: String, password: String,auth:FirebaseAuth) {
         var user : LoggedInUser = LoggedInUser("hey","hey")
         try {
