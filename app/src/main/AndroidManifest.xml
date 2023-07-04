@@ -17,9 +17,6 @@
         android:theme="@style/Theme.QrScanner"
         tools:targetApi="31">
 
-        <meta-data
-            android:name="com.google.mlkit.vision.DEPENDENCIES"
-            android:value="barcode" />
         <activity
             android:name=".MainActivity"
             android:exported="true">

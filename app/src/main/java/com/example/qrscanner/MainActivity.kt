@@ -25,7 +25,7 @@ class MainActivity : AppCompatActivity() {
         auth.addAuthStateListener (getAuthStateListener())
     }
 
-    fun getAuthStateListener():  AuthStateListener {
+    private fun getAuthStateListener():  AuthStateListener {
         authStateListener = AuthStateListener { firebaseAuth ->
             val user = firebaseAuth.currentUser
             if (user == null) {
