@@ -55,6 +55,9 @@ dependencies {
     implementation 'com.google.firebase:firebase-auth-ktx'
     //analytics
     implementation 'com.google.firebase:firebase-analytics-ktx'
+    //database realtime
+    implementation("com.google.firebase:firebase-database-ktx")
+
     def nav_version = "2.6.0"
 
 

@@ -1,6 +1,7 @@
 package com.example.qrscanner
 
 import android.Manifest
+import android.app.AlertDialog
 import android.content.ContentValues
 import android.content.pm.PackageManager
 import android.media.Image
@@ -28,10 +29,13 @@ import androidx.camera.view.LifecycleCameraController
 import androidx.core.content.ContentProviderCompat.requireContext
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import com.example.qrscanner.data.model.QrData
 import com.example.qrscanner.databinding.FragmentHomeBinding
 import com.google.android.material.snackbar.Snackbar
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.ktx.auth
+import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.ktx.database
 import com.google.firebase.ktx.Firebase
 import com.google.mlkit.common.MlKit
 import com.google.mlkit.vision.barcode.BarcodeScanner
@@ -39,6 +43,7 @@ import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import java.lang.ref.PhantomReference
 import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -56,13 +61,23 @@ class HomeFragment : Fragment() {
     private var imageCapture: ImageCapture? = null
     private lateinit var cameraExecutor: ExecutorService
     private lateinit var barcodeScanner: BarcodeScanner
+    private lateinit var databaseReference: DatabaseReference
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         auth = Firebase.auth
+        val database = Firebase.database("https://qr-scanner-andr-default-rtdb.asia-southeast1.firebasedatabase.app/")
+        databaseReference = database.reference.child("users").child(auth.currentUser!!.uid)
     }
-@ExperimentalGetImage
+
+    //performs database write operation
+    private fun writeData(barcode: String) {
+
+        val currentDate = System.currentTimeMillis()
+        databaseReference.child("qrData").push().setValue(QrData(barcode,currentDate))
+    }
+    @ExperimentalGetImage
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -72,7 +87,7 @@ class HomeFragment : Fragment() {
         binding.logout.setOnClickListener() {
             auth.signOut()
         }
-    //  TODO:handle image capture button click
+        //  TODO:handle image capture button click to capture the qr code
 
 //        binding.scanqr.setOnClickListener() {
 //            if (allPermissionsGranted()) {
@@ -84,7 +99,7 @@ class HomeFragment : Fragment() {
 //        }
         if (allPermissionsGranted()) {
             startCamera()
-        }else{
+        } else {
             requestPermissions()
         }
         cameraExecutor = Executors.newSingleThreadExecutor()
@@ -187,17 +202,21 @@ class HomeFragment : Fragment() {
 
         cameraController.setImageAnalysisAnalyzer(
             ContextCompat.getMainExecutor(requireContext()),
-            MlKitAnalyzer(listOf(barcodeScanner),
-            COORDINATE_SYSTEM_VIEW_REFERENCED   ,
+            MlKitAnalyzer(
+                listOf(barcodeScanner),
+                COORDINATE_SYSTEM_VIEW_REFERENCED,
                 ContextCompat.getMainExecutor(requireContext())
-        ){result : MlKitAnalyzer.Result?->
+            ) { result: MlKitAnalyzer.Result? ->
                 val barcode = result?.getValue(barcodeScanner)
-                if(barcode ==null || barcode.size ==0 || barcode.first() == null){
+                if (barcode == null || barcode.size == 0 || barcode.first() == null) {
                     return@MlKitAnalyzer
                 }
-                barcode.first().rawValue?.let { Snackbar.make(requireView(), it,Snackbar.LENGTH_SHORT).show() }
+                barcode.first().rawValue?.let {
+                  getAlertDialog(it).show()
+                }
+                //TODO: pause barcode scanner
 
-                barcodeScanner.close()
+              barcodeScanner.close()
 
             }
         )
@@ -247,6 +266,34 @@ class HomeFragment : Fragment() {
         cameraExecutor.shutdown()
     }
 
+    //get the alert dialog for confirming the the content of Qr code
+    @ExperimentalGetImage
+    private fun getAlertDialog(data: String): AlertDialog {
+        return requireContext().let {
+            val builder = AlertDialog.Builder(it)
+            builder.setTitle("QR code content")
+                .setMessage("Do you want to write this content to the database?\n$data")
+                .setPositiveButton("Yes") { dialog, which ->
+                    // Do something when user press the positive button
+                    writeData(data)
+                    Toast.makeText(
+                        requireContext(),
+                        "Ok, we change the app background.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                .setNegativeButton("No") { dialog, which ->
+                    // Do something when user press the negative button
+                    Toast.makeText(
+                        requireContext(),
+                        "Ok, we change the app background.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                .create()
+        }
+    }
+
     companion object {
         private const val TAG = "CameraXApp"
         private const val FILENAME_FORMAT = "yyyy-MM-dd-HH-mm-ss-SSS"
@@ -264,7 +311,7 @@ class HomeFragment : Fragment() {
 }
 
 @ExperimentalGetImage
-private class BarcodeAnalyzer(private val listener: BarcodeListener): ImageAnalysis.Analyzer {
+private class BarcodeAnalyzer(private val listener: BarcodeListener) : ImageAnalysis.Analyzer {
     override fun analyze(imageProxy: ImageProxy) {
         val mediaImage = imageProxy.image
         if (mediaImage != null) {
@@ -274,7 +321,8 @@ private class BarcodeAnalyzer(private val listener: BarcodeListener): ImageAnaly
 
         }
     }
-    private fun scanBarcode(image : InputImage) {
+
+    private fun scanBarcode(image: InputImage) {
         val options = BarcodeScannerOptions.Builder()
             .setBarcodeFormats(Barcode.FORMAT_QR_CODE, Barcode.FORMAT_AZTEC)
             .build()
@@ -296,11 +344,13 @@ private class BarcodeAnalyzer(private val listener: BarcodeListener): ImageAnaly
                             val type = barcode.wifi!!.encryptionType
                             Log.d("BarcodeScanning", "scanBarcode: $ssid $password $type")
                         }
+
                         Barcode.TYPE_URL -> {
                             val title = barcode.url!!.title
                             val url = barcode.url!!.url
                             Log.d("BarcodeScanning", "scanBarcode: $title $url")
                         }
+
                         else -> {
                             Log.d("BarcodeScanning", "scanBarcode: $rawValue")
                         }
